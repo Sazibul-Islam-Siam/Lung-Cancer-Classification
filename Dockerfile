@@ -1,9 +1,10 @@
-# Use PyTorch CPU base to avoid building torch from source in CI
-FROM pytorch/pytorch:2.0.1-cpu
+# Use slim Python base and install PyTorch CPU wheels from the official index
+FROM python:3.10-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
 
@@ -20,6 +21,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.no-torch.txt /app/requirements.no-torch.txt
 RUN pip install --upgrade pip
 RUN pip install -r /app/requirements.no-torch.txt
+
+# Install CPU wheels for torch and torchvision from PyTorch stable CPU index
+RUN pip install "torch==2.0.1+cpu" "torchvision==0.15.2+cpu" -f https://download.pytorch.org/whl/cpu/torch_stable.html
 
 # Copy app code
 COPY . /app/

@@ -2,7 +2,7 @@
 Flask==2.3.3
 Werkzeug==2.3.7
 
-# Keep timm but exclude torch/torchvision (already provided by base image)
+# Deep Learning helper
 timm==0.9.12
 
 # Image Processing

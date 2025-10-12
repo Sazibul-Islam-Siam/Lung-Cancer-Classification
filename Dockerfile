@@ -1,7 +1,6 @@
-# Use official PyTorch CPU image to avoid installing torch from pip during build
+# Use PyTorch CPU base to avoid building torch from source in CI
 FROM pytorch/pytorch:2.0.1-cpu
 
-# Set environment
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV DEBIAN_FRONTEND=noninteractive
@@ -17,10 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install
-# Copy a trimmed requirements file (we exclude torch/torchvision because the base image
-# already includes compatible builds). This speeds up builds on Render and avoids
-# heavy wheel compilation.
+# Copy trimmed requirements (no torch/torchvision)
 COPY requirements.no-torch.txt /app/requirements.no-torch.txt
 RUN pip install --upgrade pip
 RUN pip install -r /app/requirements.no-torch.txt
@@ -34,5 +30,5 @@ RUN mkdir -p /app/uploads
 # Expose port
 EXPOSE 5000
 
-# Start the app with gunicorn
+# Start the app with gunicorn, use PORT env var if provided by platform
 CMD ["gunicorn", "-w", "2", "-b", "0.0.0.0:5000", "app:app"]

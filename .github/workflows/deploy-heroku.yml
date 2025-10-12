@@ -1,43 +1,7 @@
-name: Deploy to Heroku (Container)
+name: disabled-deploy-heroku
 
-on:
-  push:
-    branches:
-      - main
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Heroku Container Registry
-        env:
-          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-        run: |
-          echo "$HEROKU_API_KEY" | docker login --username=_ --password-stdin registry.heroku.com
-
-      - name: Build and push Docker image to Heroku registry
-        env:
-          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
-        run: |
-          docker build -t registry.heroku.com/${HEROKU_APP_NAME}/web:latest .
-          docker push registry.heroku.com/${HEROKU_APP_NAME}/web:latest
-
-      - name: Release the image on Heroku
-        env:
-          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-          HEROKU_APP_NAME: ${{ secrets.HEROKU_APP_NAME }}
-        run: |
-          curl -n -X POST https://api.heroku.com/apps/${HEROKU_APP_NAME}/releases \
-            -H "Content-Type: application/json" \
-            -H "Accept: application/vnd.heroku+json; version=3" \
-            -H "Authorization: Bearer $HEROKU_API_KEY" \
-            -d '{"description":"Deploy via GitHub Actions"}'
+# This workflow has been disabled per repository owner request.
+# To permanently remove it, run locally:
+#   git rm .github/workflows/deploy-heroku.yml
+#   git commit -m "ci: remove Heroku workflow"
+#   git push origin main

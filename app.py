@@ -22,7 +22,8 @@ class MBv3toViT(nn.Module):
     def __init__(self, num_classes, vit_dim=768, vit_depth=8, vit_heads=12, drop=0.1):
         super().__init__()
         # 1) MobileNetV3 backbone (feature extractor)
-        mb = mobilenet_v3_small(pretrained=True)
+        # Avoid downloading pretrained weights during image build; expect full weights in model.pth
+        mb = mobilenet_v3_small(pretrained=False)
         self.backbone = mb.features  # outputs ~[B, 576, 7, 7]
 
         # Channel dimension coming out of MBv3-small:
@@ -70,12 +71,12 @@ class MBv3toViT(nn.Module):
 
         return self.head(cls_out)
 
-# Set up the path to your model and load it
+# Set up the path to your model and load it safely at runtime
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = MBv3toViT(num_classes=3)  # Number of classes in your dataset
 MODEL_PATH = "model.pth"
 
-# If a MODEL_URL environment variable is provided, download the model at startup if missing
+
 def download_model_if_needed():
     model_url = os.environ.get('MODEL_URL', '').strip()
     if os.path.exists(MODEL_PATH):
@@ -131,12 +132,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 def uploaded_file(filename):
     from flask import send_from_directory
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-
-
-@app.route('/health')
-def health():
-    status = {'ok': True, 'model_loaded': bool(model_loaded)}
-    return jsonify(status)
 
 # Class names (you should update these based on your dataset)
 class_names = ["lung_aca", "lung_n", "lung_scc"]  # Order from model training
@@ -304,8 +299,4 @@ def predict():
                              gradcam_filename=gradcam_filename)
 
 if __name__ == '__main__':
-    # Use PORT environment variable if provided (platforms like Heroku, Render, Fly use this)
-    port = int(os.environ.get('PORT', 5000))
-    debug = os.environ.get('FLASK_DEBUG', '0') == '1'
-    # Bind to 0.0.0.0 for external access when deployed
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    app.run(debug=True)

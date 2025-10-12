@@ -1,5 +1,5 @@
-# Use official Python image
-FROM python:3.10-slim
+# Use official PyTorch CPU image to avoid installing torch from pip during build
+FROM pytorch/pytorch:2.0.1-cpu
 
 # Set environment
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -18,9 +18,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install
-COPY requirements.txt /app/
+# Copy a trimmed requirements file (we exclude torch/torchvision because the base image
+# already includes compatible builds). This speeds up builds on Render and avoids
+# heavy wheel compilation.
+COPY requirements.no-torch.txt /app/requirements.no-torch.txt
 RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+RUN pip install -r /app/requirements.no-torch.txt
 
 # Copy app code
 COPY . /app/

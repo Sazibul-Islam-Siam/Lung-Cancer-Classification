@@ -1,0 +1,27 @@
+{
+  "name": "lung-cancer-classification",
+  "description": "Flask app for lung cancer image classification with Grad-CAM visualization",
+  "repository": "https://github.com/Sazibul-Islam-Siam/Lung-Cancer-Classification",
+  "stack": "container",
+  "scripts": {
+    "start": "gunicorn -w 2 -b 0.0.0.0:$PORT app:app"
+  },
+  "env": {
+    "FLASK_DEBUG": {
+      "description": "Enable Flask debug mode (0 or 1)",
+      "value": "0"
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "free"
+    }
+  },
+  "addons": [],
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ]
+}

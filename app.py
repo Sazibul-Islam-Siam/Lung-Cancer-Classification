@@ -73,9 +73,47 @@ class MBv3toViT(nn.Module):
 # Set up the path to your model and load it
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = MBv3toViT(num_classes=3)  # Number of classes in your dataset
-model.load_state_dict(torch.load("model.pth", map_location=device))
-model.to(device)
-model.eval()
+MODEL_PATH = "model.pth"
+
+# If a MODEL_URL environment variable is provided, download the model at startup if missing
+def download_model_if_needed():
+    model_url = os.environ.get('MODEL_URL', '').strip()
+    if os.path.exists(MODEL_PATH):
+        print(f"Model already present at {MODEL_PATH}")
+        return True
+    if not model_url:
+        print("No MODEL_URL provided and model.pth not found. App will fail to load model until model.pth is available.")
+        return False
+
+    try:
+        import requests
+        print(f"Downloading model from {model_url}...")
+        r = requests.get(model_url, stream=True, timeout=60)
+        r.raise_for_status()
+        with open(MODEL_PATH, 'wb') as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+        print("Model downloaded successfully.")
+        return True
+    except Exception as e:
+        print(f"Failed to download model: {e}")
+        return False
+
+
+# Try to ensure the model file exists (download if MODEL_URL provided)
+download_model_if_needed()
+
+# Load model weights safely
+try:
+    model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
+    model.to(device)
+    model.eval()
+    model_loaded = True
+    print("Model loaded into memory.")
+except Exception as e:
+    model_loaded = False
+    print(f"Warning: could not load model from {MODEL_PATH}: {e}")
 
 # Define transformations for input image
 transform = transforms.Compose([
@@ -93,6 +131,12 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 def uploaded_file(filename):
     from flask import send_from_directory
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+
+@app.route('/health')
+def health():
+    status = {'ok': True, 'model_loaded': bool(model_loaded)}
+    return jsonify(status)
 
 # Class names (you should update these based on your dataset)
 class_names = ["lung_aca", "lung_n", "lung_scc"]  # Order from model training

@@ -24,6 +24,25 @@ An AI-powered Flask web application for lung cancer screening and classification
 
 - **⚡ Fast Processing**: Real-time inference with optimized model architecture
 
+## 🖼️ Screenshots
+
+Below are example screenshots showing the upload page and the diagnostic result page with Grad-CAM visualization. To include these images in the repository, add them under `assets/screenshots/` and commit them. Recommended filenames:
+
+- `assets/screenshots/upload-page.png` — Upload / single-viewport UI (suggested size: 1024x1024)
+- `assets/screenshots/result-page.png` — Result dashboard with Grad-CAM (suggested size: 2048x768)
+
+If you prefer to keep images out of the repo, you can host them externally and reference them by URL in this README.
+
+### Example screenshots
+
+Upload page:
+
+![Upload page](assets/screenshots/Screenshot 2025-10-13 015457.png)
+
+Result page:
+
+![Result page](assets/screenshots/Screenshot 2025-10-13 015539.png)
+
 ## 🏗️ Model Architecture
 
 The application uses **MBv3toViT** - a hybrid architecture combining:

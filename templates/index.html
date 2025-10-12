@@ -241,6 +241,11 @@
         </div>
         {% endif %}
 
+        <!-- Client-side validation alert -->
+        <div id="clientError" class="alert alert-danger d-none" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i><span id="clientErrorText"></span>
+        </div>
+
         <!-- Upload Form -->
         <form id="uploadForm" action="/predict" method="POST" enctype="multipart/form-data">
             <div class="upload-area" id="uploadArea">
@@ -308,19 +313,28 @@
             fileInput.click();
         });
 
-        // File selection
+        // File selection with client-side validation
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) {
                 fileName.textContent = `📄 ${file.name}`;
                 fileName.classList.add('active');
-                analyzeBtn.disabled = false;
 
-                // Show preview
+                // Show preview and validate client-side
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    previewImage.src = e.target.result;
+                    const dataURL = e.target.result;
+                    previewImage.src = dataURL;
                     previewImage.classList.add('active');
+                    validateImageDataURL(dataURL, (isValid) => {
+                        if (!isValid) {
+                            showClientError('This image looks invalid for histopathology (low color saturation). Please upload an H&E-stained slide or similar.');
+                            analyzeBtn.disabled = true;
+                        } else {
+                            hideClientError();
+                            analyzeBtn.disabled = false;
+                        }
+                    });
                 };
                 reader.readAsDataURL(file);
             }
@@ -345,12 +359,21 @@
                 fileInput.files = e.dataTransfer.files;
                 fileName.textContent = `📄 ${file.name}`;
                 fileName.classList.add('active');
-                analyzeBtn.disabled = false;
 
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    previewImage.src = e.target.result;
+                    const dataURL = e.target.result;
+                    previewImage.src = dataURL;
                     previewImage.classList.add('active');
+                    validateImageDataURL(dataURL, (isValid) => {
+                        if (!isValid) {
+                            showClientError('This image looks invalid for histopathology (low color saturation). Please upload an H&E-stained slide or similar.');
+                            analyzeBtn.disabled = true;
+                        } else {
+                            hideClientError();
+                            analyzeBtn.disabled = false;
+                        }
+                    });
                 };
                 reader.readAsDataURL(file);
             }
@@ -358,10 +381,68 @@
 
         // Form submission
         uploadForm.addEventListener('submit', (e) => {
-            loadingSpinner.classList.add('active');
-            analyzeBtn.disabled = true;
-            analyzeBtn.textContent = 'Analyzing...';
+            // prevent submit if client-side validation flagged an error
+            if (!analyzeBtn.disabled) {
+                loadingSpinner.classList.add('active');
+                analyzeBtn.disabled = true;
+                analyzeBtn.textContent = 'Analyzing...';
+            } else {
+                e.preventDefault();
+            }
         });
+
+        // Helper: show/hide client error
+        function showClientError(msg) {
+            const el = document.getElementById('clientError');
+            const txt = document.getElementById('clientErrorText');
+            txt.textContent = msg;
+            el.classList.remove('d-none');
+        }
+
+        function hideClientError() {
+            const el = document.getElementById('clientError');
+            el.classList.add('d-none');
+        }
+
+        // Validate image by loading into canvas and computing mean saturation (HSV)
+        function validateImageDataURL(dataURL, callback) {
+            const img = new Image();
+            img.crossOrigin = 'Anonymous';
+            img.onload = () => {
+                try {
+                    const canvas = document.createElement('canvas');
+                    const size = 224; // downsample for speed
+                    canvas.width = size;
+                    canvas.height = size;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, size, size);
+                    const imageData = ctx.getImageData(0, 0, size, size).data;
+                    let totalSat = 0;
+                    let count = 0;
+                    for (let i = 0; i < imageData.length; i += 4) {
+                        const r = imageData[i] / 255;
+                        const g = imageData[i + 1] / 255;
+                        const b = imageData[i + 2] / 255;
+                        const max = Math.max(r, g, b);
+                        const min = Math.min(r, g, b);
+                        let s = 0;
+                        if (max > 0) s = (max - min) / max;
+                        totalSat += s;
+                        count += 1;
+                    }
+                    const meanSat = totalSat / count;
+                    // threshold roughly matches server-side 0.12
+                    callback(meanSat >= 0.12);
+                } catch (err) {
+                    // on error, treat as unknown (allow server-side to catch)
+                    callback(true);
+                }
+            };
+            img.onerror = () => {
+                callback(false);
+            };
+            img.src = dataURL;
+        }
     </script>
 </body>
 </html>

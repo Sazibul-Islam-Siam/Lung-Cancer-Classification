@@ -2,7 +2,6 @@
 .venv/
 
 # PyTorch model weights
-model.pth
 
 # Uploaded images and temporary files
 uploads/

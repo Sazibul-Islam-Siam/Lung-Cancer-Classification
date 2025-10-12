@@ -37,11 +37,11 @@ If you prefer to keep images out of the repo, you can host them externally and r
 
 Upload page:
 
-![Upload page](assets/screenshots/Screenshot 2025-10-13 015457.png)
+![Upload page](assets/screenshots/upload-page.png)
 
 Result page:
 
-![Result page](assets/screenshots/Screenshot 2025-10-13 015539.png)
+![Result page](assets/screenshots/result-page.png)
 
 ## 🏗️ Model Architecture
 

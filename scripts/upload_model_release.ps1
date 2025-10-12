@@ -60,6 +60,7 @@ if ($releaseExists) {
     gh release create $Tag --notes "Model weights $Tag" $modelPath --repo $fullRepo
 }
 
-$publicUrl = "https://github.com/$owner/$repo/releases/download/$Tag/$(Split-Path $modelPath -Leaf)"
+$fileName = Split-Path $modelPath -Leaf
+$publicUrl = "https://github.com/$owner/$repo/releases/download/$Tag/$fileName"
 Write-Output "Upload finished. Public URL: $publicUrl"
 Write-Output "Copy this URL and set it as MODEL_URL in Render (or other host)."

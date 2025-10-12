@@ -1,66 +1,52 @@
 <#
-PowerShell helper: create a GitHub release (or upload asset to existing release) and upload model.pth
+Simple PowerShell helper to upload model.pth as a GitHub Release asset.
+
 Prerequisites:
- - GitHub CLI (gh) installed and authenticated: https://cli.github.com/
- - model.pth present in repository root
+ - GitHub CLI (gh) installed and authenticated (gh auth login)
+ - model.pth present in the repository root
+
 Usage:
  .\scripts\upload_model_release.ps1 -Tag v1.0.0
 #>
+
 param(
-    [string]$Tag = "v1.0.0"
+    [string]$Tag = 'v1.0.0'
 )
 
-# Ensure gh exists
-if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-    Write-Error "GitHub CLI 'gh' is not installed. Install from https://cli.github.com/ and authenticate (gh auth login)."
-    exit 1
-}
+function Fail($msg) { Write-Host "ERROR: $msg"; exit 1 }
 
-# Ensure model file exists
+# Check gh
+if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { Fail 'GitHub CLI "gh" is not installed. Install from https://cli.github.com/' }
+
+# Check model file
 $modelPath = Join-Path (Get-Location) 'model.pth'
-if (-not (Test-Path $modelPath)) {
-    Write-Error "model.pth not found at $modelPath. Place the model file in the repository root before running this script."
-    exit 1
-}
+if (-not (Test-Path $modelPath)) { Fail "model.pth not found at $modelPath. Place the file in the repository root." }
 
-# Get repo owner/name from git remote
+# Get origin remote URL
 $remote = git remote get-url origin 2>$null
-if (-not $remote) {
-    Write-Error "No git remote 'origin' found. Make sure this repo has an origin pointing to GitHub."
-    exit 1
-}
+if (-not $remote) { Fail "No git remote 'origin' found. Make sure this repo has an origin pointing to GitHub." }
 
-# Parse owner/repo
-if ($remote -match 'github.com[:/](.+?)/(.+?)(?:\.git)?$') {
-    $owner = $Matches[1]
-    $repo = $Matches[2]
+# Parse owner and repo (simple parse)
+$parts = $remote -split '[:/]'
+# The last two path parts should be owner and repo.git (or repo)
+if ($parts.Length -lt 2) { Fail "Could not parse remote URL: $remote" }
+$owner = $parts[-2]
+$repoWithExt = $parts[-1]
+$repo = if ($repoWithExt.EndsWith('.git')) { $repoWithExt.Substring(0, $repoWithExt.Length - 4) } else { $repoWithExt }
+
+Write-Host "Repository: $owner/$repo"
+
+# Check for existing release
+gh release view $Tag --repo "${owner}/${repo}" > $null 2>&1
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "Release $Tag exists. Uploading asset (will overwrite if exists)..."
+    gh release upload $Tag $modelPath --repo "${owner}/${repo}" --clobber
 } else {
-    Write-Error "Could not parse GitHub repo from remote URL: $remote"
-    exit 1
-}
-
-$fullRepo = "$owner/$repo"
-Write-Output "Repository: $fullRepo"
-
-# Check if release exists
-$releaseExists = $false
-try {
-    gh release view $Tag --repo $fullRepo > $null 2>&1
-    if ($LASTEXITCODE -eq 0) { $releaseExists = $true }
-} catch {
-    $releaseExists = $false
-}
-
-if ($releaseExists) {
-    Write-Output "Release $Tag exists — uploading asset (will overwrite if exists)..."
-    # --clobber overwrites existing asset with same name
-    gh release upload $Tag $modelPath --repo $fullRepo --clobber
-} else {
-    Write-Output "Creating release $Tag and uploading asset..."
-    gh release create $Tag --notes "Model weights $Tag" $modelPath --repo $fullRepo
+    Write-Host "Creating release $Tag and uploading asset..."
+    gh release create $Tag --notes "Model weights $Tag" $modelPath --repo "${owner}/${repo}"
 }
 
 $fileName = Split-Path $modelPath -Leaf
 $publicUrl = "https://github.com/$owner/$repo/releases/download/$Tag/$fileName"
-Write-Output "Upload finished. Public URL: $publicUrl"
-Write-Output "Copy this URL and set it as MODEL_URL in Render (or other host)."
+Write-Host "Upload finished. Public URL: $publicUrl"
+Write-Host "Copy this URL and set it as MODEL_URL in Render (or other host)."

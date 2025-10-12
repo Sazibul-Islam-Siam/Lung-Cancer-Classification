@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+uploads/
+model.pth
+*.pth
+.git
+.gitignore
+.gitattributes
+*.md
+.DS_Store

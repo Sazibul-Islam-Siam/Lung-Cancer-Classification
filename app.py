@@ -13,6 +13,7 @@ import matplotlib
 matplotlib.use('Agg')  # Use non-GUI backend
 import matplotlib.pyplot as plt
 from torch.nn import functional as F
+import traceback
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -22,8 +23,7 @@ class MBv3toViT(nn.Module):
     def __init__(self, num_classes, vit_dim=768, vit_depth=8, vit_heads=12, drop=0.1):
         super().__init__()
         # 1) MobileNetV3 backbone (feature extractor)
-        # Avoid downloading pretrained weights during image build; expect full weights in model.pth
-        mb = mobilenet_v3_small(pretrained=False)
+        mb = mobilenet_v3_small(pretrained=True)
         self.backbone = mb.features  # outputs ~[B, 576, 7, 7]
 
         # Channel dimension coming out of MBv3-small:
@@ -71,50 +71,12 @@ class MBv3toViT(nn.Module):
 
         return self.head(cls_out)
 
-# Set up the path to your model and load it safely at runtime
+# Set up the path to your model and load it
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = MBv3toViT(num_classes=3)  # Number of classes in your dataset
-MODEL_PATH = "model.pth"
-
-
-def download_model_if_needed():
-    model_url = os.environ.get('MODEL_URL', '').strip()
-    if os.path.exists(MODEL_PATH):
-        print(f"Model already present at {MODEL_PATH}")
-        return True
-    if not model_url:
-        print("No MODEL_URL provided and model.pth not found. App will fail to load model until model.pth is available.")
-        return False
-
-    try:
-        import requests
-        print(f"Downloading model from {model_url}...")
-        r = requests.get(model_url, stream=True, timeout=60)
-        r.raise_for_status()
-        with open(MODEL_PATH, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
-        print("Model downloaded successfully.")
-        return True
-    except Exception as e:
-        print(f"Failed to download model: {e}")
-        return False
-
-
-# Try to ensure the model file exists (download if MODEL_URL provided)
-download_model_if_needed()
-
-# Load model weights safely
-try:
-    model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
-    model.to(device)
-    model.eval()
-    model_loaded = True
-    print("Model loaded into memory.")
-except Exception as e:
-    model_loaded = False
-    print(f"Warning: could not load model from {MODEL_PATH}: {e}")
+model.load_state_dict(torch.load("model.pth", map_location=device))
+model.to(device)
+model.eval()
 
 # Define transformations for input image
 transform = transforms.Compose([
@@ -258,22 +220,47 @@ def predict():
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(file_path)
 
+        # Server-side validation: quick heuristic to check for stained histopathology images
+        try:
+            pil_img = Image.open(file_path).convert('RGB')
+        except Exception as e:
+            return render_template('index.html', error="Invalid image file. Please upload a valid image.")
+
+        try:
+            # Convert to numpy and compute mean saturation in HSV color space
+            import cv2
+            arr = np.array(pil_img)
+            hsv = cv2.cvtColor(arr, cv2.COLOR_RGB2HSV)
+            sat_mean = float(hsv[:, :, 1].mean()) / 255.0
+            # Heuristic thresholds: stained histology images tend to have noticeable saturation
+            if sat_mean < 0.12:
+                return render_template('index.html', error="Invalid image: not a stained histopathology image. Please upload an H&E-stained slide or similar.")
+        except Exception:
+            # If validation fails for any reason, continue but guard inference in try/except below
+            pass
+
         # Open the image, apply transformations
-        img = Image.open(file_path)
-        img = transform(img).unsqueeze(0).to(device)  # Add batch dimension and move to device
-        
-        # Make prediction
-        with torch.no_grad():
-            outputs = model(img)
-            probs = torch.softmax(outputs, dim=1)  # Get class probabilities
-            all_probs = probs[0].cpu().numpy()
-            confidences, predicted_class = torch.max(probs, 1)  # Get highest probability class
+        try:
+            img = transform(pil_img).unsqueeze(0).to(device)  # Add batch dimension and move to device
 
-        predicted_class = predicted_class.item()
-        confidence = confidences.item() * 100
+            # Make prediction
+            with torch.no_grad():
+                outputs = model(img)
+                probs = torch.softmax(outputs, dim=1)  # Get class probabilities
+                all_probs = probs[0].cpu().numpy()
+                confidences, predicted_class = torch.max(probs, 1)  # Get highest probability class
 
-        # Generate Grad-CAM heatmap
-        gradcam_filename = generate_gradcam_heatmap(model, img, file_path, predicted_class)
+            predicted_class = predicted_class.item()
+            confidence = confidences.item() * 100
+
+            # Generate Grad-CAM heatmap
+            gradcam_filename = generate_gradcam_heatmap(model, img, file_path, predicted_class)
+        except Exception as e:
+            tb = traceback.format_exc()
+            # Log the full traceback to console for debugging
+            print("Inference error:\n", tb)
+            # Return a user-friendly error message
+            return render_template('index.html', error="Unable to process this image. Please upload a stained histopathology image (H&E) or check image format.")
 
         # Map class names to full descriptions
         class_descriptions = {

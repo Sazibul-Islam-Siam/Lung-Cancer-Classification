@@ -2,9 +2,7 @@
 Flask==2.3.3
 Werkzeug==2.3.7
 
-# Deep Learning
-torch==2.0.1
-torchvision==0.15.2
+# Deep Learning helper
 timm==0.9.12
 
 # Image Processing

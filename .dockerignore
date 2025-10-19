@@ -10,4 +10,3 @@ model.pth
 .gitattributes
 *.md
 .DS_Store
-requirements.no-torch.txt
